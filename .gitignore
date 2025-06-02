@@ -1,0 +1,34 @@
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Env / IDE
+.env
+*.env
+*.vscode/
+.idea/
+*.log
+
+# PyInstaller build folders
+build/
+dist/
+*.spec
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# ROMs and Covers
+ROMs/
+Covers/
+
+# Emulators
+Emulators/
+
+# Assets (optional if using large files)
+assets/*.mp3
+assets/*.mp4
+assets/*.ogg
+assets/*.zip
