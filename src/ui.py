@@ -6,7 +6,6 @@ from functools import partial
 from kivy.app import App
 from kivy.core.window import Window
 from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.button import Button
 from kivy.uix.gridlayout import GridLayout
 from kivy.uix.image import Image as KivyImage
 from kivy.uix.label import Label
@@ -17,7 +16,6 @@ from kivy.uix.textinput import TextInput
 from kivy.utils import get_color_from_hex
 from kivy.uix.anchorlayout import AnchorLayout
 from kivy.graphics import Color, Rectangle, Line
-from kivy.clock import Clock
 
 from src.romScanner import scan_roms
 from src.gameLauncher import launch_game
@@ -26,20 +24,8 @@ from src.Recent import load_recent as load_recent_games, save_recent
 RECENT_FILE = "recent.json"
 FAVORITES_FILE = "favorites.json"
 
-class GameButton(ButtonBehavior, BoxLayout):
-    def __init__(self, game_info, **kwargs):
-        super(GameButton, self).__init__(orientation='vertical', size_hint_y=None, height=250, **kwargs)
-        self.game_info = game_info
-
-        self.image = KivyImage(source=game_info['cover_path'], allow_stretch=False, keep_ratio=True, size_hint_y=0.85)
-        self.label = Label(text=game_info['title'], size_hint_y=0.15, font_size=14, color=(1, 1, 1, 1))
-
-        self.add_widget(self.image)
-        self.add_widget(self.label)
-
-    def on_press(self):
-        add_to_recent(self.game_info)
-        launch_game(self.game_info['platform'], self.game_info['rom_path'])
+focused_game_index = 0
+focused_game_buttons = []
 
 def load_favorites():
     if os.path.exists(FAVORITES_FILE):
@@ -59,7 +45,69 @@ def add_to_recent(game_info):
     recent.insert(0, new_entry)
     if len(recent) > 5:
         recent = recent[:5]
-    save_recent(new_entry)
+    with open(RECENT_FILE, 'w') as f:
+        json.dump(recent, f)
+
+class GameButton(ButtonBehavior, BoxLayout):
+    def __init__(self, game_info, **kwargs):
+        super(GameButton, self).__init__(orientation='vertical', size_hint_y=None, height=250, **kwargs)
+        self.game_info = game_info
+
+        self.image = KivyImage(source=game_info['cover_path'], allow_stretch=False, keep_ratio=True, size_hint_y=0.85)
+        self.label = Label(text=game_info['title'], size_hint_y=0.15, font_size=14, color=(1, 1, 1, 1))
+
+        self.add_widget(self.image)
+        self.add_widget(self.label)
+
+        with self.canvas.before:
+            self.bg_color = Color(1, 1, 1, 0)
+            self.rect = Rectangle(size=self.size, pos=self.pos)
+        self.bind(size=self.update_rect, pos=self.update_rect)
+
+    def update_rect(self, *args):
+        self.rect.size = self.size
+        self.rect.pos = self.pos
+
+    def set_focus(self, focused):
+        self.bg_color.rgba = (0.2, 0.6, 1, 0.4) if focused else (1, 1, 1, 0)
+
+    def on_press(self):
+        add_to_recent(self.game_info)
+        launch_game(self.game_info['platform'], self.game_info['rom_path'])
+
+class TabButton(ButtonBehavior, BoxLayout):
+    def __init__(self, icon_path=None, text_label="", **kwargs):
+        super(TabButton, self).__init__(orientation='horizontal', spacing=5, padding=[10, 10], size_hint=(None, 1), width=160, **kwargs)
+        self.icon_path = icon_path
+        self.bg_color_default = get_color_from_hex("#1b2838")
+        self.bg_color_active = get_color_from_hex("#2a475e")
+        self.bg_color_hover = get_color_from_hex("#2f4f67")
+        self.canvas_color = self.bg_color_default
+        self.active = False
+
+        with self.canvas.before:
+            self.rect_color = Color(*self.canvas_color)
+            self.rect = Rectangle(size=self.size, pos=self.pos)
+            self.border_line = Line(rectangle=(self.x, self.y, self.width, self.height), width=1.2)
+            self.bind(size=self._update_rect, pos=self._update_rect)
+
+        if icon_path:
+            self.icon = KivyImage(source=icon_path, size_hint=(None, None), size=(24, 24))
+            self.add_widget(self.icon)
+
+        self.label = Label(text=text_label, color=(1, 1, 1, 1), bold=True, halign='center', valign='middle')
+        self.label.bind(size=self.label.setter('text_size'))
+        self.add_widget(self.label)
+
+    def _update_rect(self, *args):
+        self.rect.pos = self.pos
+        self.rect.size = self.size
+        self.border_line.rectangle = (self.x, self.y, self.width, self.height)
+
+    def highlight(self, active):
+        self.active = active
+        new_color = self.bg_color_active if active else self.bg_color_default
+        self.rect_color.rgba = new_color
 
 class PlatformScreen(Screen):
     def __init__(self, platform, games, **kwargs):
@@ -68,8 +116,16 @@ class PlatformScreen(Screen):
         layout = GridLayout(cols=4, spacing=10, padding=10, size_hint_y=None)
         layout.bind(minimum_height=layout.setter('height'))
 
+        global focused_game_buttons
+        focused_game_buttons = []
+
         for game in games:
-            layout.add_widget(GameButton(game))
+            button = GameButton(game)
+            layout.add_widget(button)
+            focused_game_buttons.append(button)
+
+        if focused_game_buttons:
+            focused_game_buttons[0].set_focus(True)
 
         scroll = ScrollView(size_hint=(1, 1))
         scroll.add_widget(layout)
@@ -153,55 +209,6 @@ class HomeScreen(Screen):
         scroll.add_widget(grid)
         return scroll
 
-class TabButton(ButtonBehavior, BoxLayout):
-    def __init__(self, icon_path=None, text_label="", **kwargs):
-        super(TabButton, self).__init__(orientation='horizontal', spacing=5, padding=[10, 10], size_hint=(None, 1), width=160, **kwargs)
-        self.icon_path = icon_path
-        self.bg_color_default = get_color_from_hex("#1b2838")
-        self.bg_color_active = get_color_from_hex("#2a475e")
-        self.bg_color_hover = get_color_from_hex("#2f4f67")
-        self.canvas_color = self.bg_color_default
-        self.active = False
-
-        with self.canvas.before:
-            self.rect_color = Color(*self.canvas_color)
-            self.rect = Rectangle(size=self.size, pos=self.pos)
-            self.border_line = Line(rectangle=(self.x, self.y, self.width, self.height), width=1.2)
-            self.bind(size=self._update_rect, pos=self._update_rect)
-
-        if icon_path:
-            self.icon = KivyImage(source=icon_path, size_hint=(None, None), size=(24, 24))
-            self.add_widget(self.icon)
-
-        self.label = Label(text=text_label, color=(1, 1, 1, 1), bold=True, halign='center', valign='middle')
-        self.label.bind(size=self.label.setter('text_size'))
-        self.add_widget(self.label)
-
-    def _update_rect(self, *args):
-        self.rect.pos = self.pos
-        self.rect.size = self.size
-        self.border_line.rectangle = (self.x, self.y, self.width, self.height)
-
-    def highlight(self, active):
-        self.active = active
-        new_color = self.bg_color_active if active else self.bg_color_default
-        self.rect_color.rgba = new_color
-
-    def on_touch_move(self, touch):
-        if self.collide_point(*touch.pos) and not self.active:
-            self.rect_color.rgba = self.bg_color_hover
-        return super().on_touch_move(touch)
-
-    def on_touch_down(self, touch):
-        if self.collide_point(*touch.pos):
-            self.highlight(True)
-        return super().on_touch_down(touch)
-
-    def on_touch_up(self, touch):
-        if self.collide_point(*touch.pos) and not self.active:
-            self.rect_color.rgba = self.bg_color_default
-        return super().on_touch_up(touch)
-
 class SuperConsoleLauncher(App):
     def build(self):
         screen_width, screen_height = Window.system_size
@@ -225,10 +232,12 @@ class SuperConsoleLauncher(App):
 
         tab_bar = BoxLayout(size_hint_y=None, height=50, spacing=5, padding=5)
         self.tab_buttons = {}
+        self.tab_order = []
 
         def highlight_tab(tag):
             for k, btn in self.tab_buttons.items():
-                btn.highlight(k == tag)
+                if hasattr(btn, 'highlight'):
+                    btn.highlight(k == tag)
             self.current_tab_index = self.tab_order.index(tag)
 
         def create_icon_text_button(icon_path, label_text, callback, tag):
@@ -236,28 +245,33 @@ class SuperConsoleLauncher(App):
             btn.bind(on_release=callback)
             btn.bind(on_release=lambda inst: highlight_tab(tag))
             self.tab_buttons[tag] = btn
+            self.tab_order.append(tag)
             return btn
 
+        # Add Home button
         home_btn = create_icon_text_button("assets/home.png", "Home", lambda x: self.switch_platform("Home"), "Home")
         tab_bar.add_widget(home_btn)
 
+        # Add platform buttons
         for platform in self.platforms:
             btn = create_icon_text_button(None, platform, lambda x, plat=platform: self.switch_platform(plat), platform)
             tab_bar.add_widget(btn)
             screen = PlatformScreen(platform, self.platforms[platform])
             self.sm.add_widget(screen)
 
+        # Add Steam button
         steam_btn = create_icon_text_button("assets/steam.png", "Steam", lambda x: webbrowser.open("steam://open/bigpicture"), "Steam")
         tab_bar.add_widget(steam_btn)
 
         root.add_widget(tab_bar)
         root.add_widget(self.sm)
 
-        self.tab_order = list(self.tab_buttons.keys())
         self.current_tab_index = self.tab_order.index("Home")
 
+        # Bind controller input
         Window.bind(on_joy_button_down=self.on_joy_button_down)
 
+        # Initial highlight
         highlight_tab("Home")
 
         return root
@@ -275,6 +289,8 @@ class SuperConsoleLauncher(App):
         self.sm.current = platform
 
     def on_joy_button_down(self, window, stickid, button):
+        global focused_game_index, focused_game_buttons
+
         if button == 4:  # LB
             self.current_tab_index = (self.current_tab_index - 1) % len(self.tab_order)
             tag = self.tab_order[self.current_tab_index]
@@ -283,3 +299,26 @@ class SuperConsoleLauncher(App):
             self.current_tab_index = (self.current_tab_index + 1) % len(self.tab_order)
             tag = self.tab_order[self.current_tab_index]
             self.tab_buttons[tag].dispatch('on_release')
+        elif button == 0:  # A button
+            if 0 <= focused_game_index < len(focused_game_buttons):
+                focused_game_buttons[focused_game_index].dispatch('on_press')
+        elif button == 11:  # D-pad up
+            if focused_game_buttons:
+                focused_game_buttons[focused_game_index].set_focus(False)
+                focused_game_index = max(0, focused_game_index - 4)
+                focused_game_buttons[focused_game_index].set_focus(True)
+        elif button == 12:  # D-pad down
+            if focused_game_buttons:
+                focused_game_buttons[focused_game_index].set_focus(False)
+                focused_game_index = min(len(focused_game_buttons) - 1, focused_game_index + 4)
+                focused_game_buttons[focused_game_index].set_focus(True)
+        elif button == 13:  # D-pad left
+            if focused_game_buttons:
+                focused_game_buttons[focused_game_index].set_focus(False)
+                focused_game_index = max(0, focused_game_index - 1)
+                focused_game_buttons[focused_game_index].set_focus(True)
+        elif button == 14:  # D-pad right
+            if focused_game_buttons:
+                focused_game_buttons[focused_game_index].set_focus(False)
+                focused_game_index = min(len(focused_game_buttons) - 1, focused_game_index + 1)
+                focused_game_buttons[focused_game_index].set_focus(True)
