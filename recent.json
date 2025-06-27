@@ -1,0 +1,56 @@
+[
+  {
+    "title": "Call of Duty - Black Ops",
+    "platform": "Xbox360",
+    "rom_path": "ROMs/Xbox360\\Call of Duty - Black Ops.iso",
+    "cover_path": "Covers/Xbox360\\Call of Duty - Black Ops.jpg"
+  },
+  {
+    "title": "Super Smash Bros",
+    "platform": "WiiU",
+    "rom_path": "ROMs/WiiU\\Super Smash Bros\\code\\cross_f.rpx",
+    "cover_path": "Covers/WiiU\\Super Smash Bros.jpg"
+  },
+  {
+    "title": "Legend of Zelda, The - Ocarina of Time (USA)",
+    "platform": "N64",
+    "rom_path": "ROMs/N64\\Legend of Zelda, The - Ocarina of Time (USA).z64",
+    "cover_path": "Covers/N64\\Legend of Zelda, The - Ocarina of Time (USA).jpg"
+  },
+  {
+    "title": "Breath of the Wild",
+    "platform": "WiiU",
+    "rom_path": "ROMs/WiiU\\Breath of the Wild\\code\\U-King.rpx",
+    "cover_path": "Covers/WiiU\\Breath of the Wild.jpg"
+  },
+  {
+    "title": "Call of Duty Black Ops",
+    "platform": "PS3",
+    "rom_path": "Emulators\\RPCS3\\dev_hdd0\\game\\Call of Duty Black Ops\\USRDIR\\EBOOT.BIN",
+    "cover_path": "Covers/PS3\\Call of Duty Black Ops.jpg"
+  },
+  {
+    "title": "Super Mario Bros. 3 (USA)",
+    "platform": "NES",
+    "rom_path": "ROMs/NES\\Super Mario Bros. 3 (USA).nes",
+    "cover_path": "Covers/NES\\Super Mario Bros. 3 (USA).jpg"
+  },
+  {
+    "title": "Call of Duty Black Ops 3",
+    "platform": "PS3",
+    "rom_path": "Emulators\\RPCS3\\dev_hdd0\\game\\Call of Duty Black Ops 3\\USRDIR\\EBOOT.BIN",
+    "cover_path": "Covers/PS3\\Call of Duty Black Ops 3.jpg"
+  },
+  {
+    "title": "Pokemon Light Platinum - USA Edition ",
+    "platform": "GBA",
+    "rom_path": "ROMs/GBA\\Pokemon Light Platinum - USA Edition .gba",
+    "cover_path": "Covers/GBA\\Pokemon Light Platinum - USA Edition .jpg"
+  },
+  {
+    "title": "Legend of Zelda, The - Twilight Princess (USA)",
+    "platform": "GameCube",
+    "rom_path": "ROMs/GameCube\\Legend of Zelda, The - Twilight Princess (USA).iso",
+    "cover_path": "Covers/GameCube\\Legend of Zelda, The - Twilight Princess (USA).jpg"
+  }
+]

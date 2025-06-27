@@ -1,8 +1,8 @@
 
-from src.ui import run_launcher_ui
+from src.ui import SuperConsoleLauncher
 
 def main():
-    run_launcher_ui()
+    SuperConsoleLauncher().run()
 
 if __name__ == "__main__":
     main()

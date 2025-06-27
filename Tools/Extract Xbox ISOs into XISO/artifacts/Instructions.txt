@@ -1,0 +1,1 @@
+Drag .iso file onto the extract-xiso.exe file to start converting.

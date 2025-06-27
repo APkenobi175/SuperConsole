@@ -1,0 +1,12 @@
+{
+  "CommonKey": "D7B00402659BA2ABD2CB0DB27FA2B656",
+  "TitleFile": "titledb.json",
+  "SavePath": "",
+  "NintendoBaseUrl": "http://ccs.cdn.c.shop.nintendowifi.net/ccs/download/",
+  "DownloadParallel": true,
+  "Decrypt": true,
+  "DeleteAppFiles": true,
+  "SkipExistingFiles": false,
+  "DownloadH3Files": false,
+  "MaxDegreeOfParallelism": 6
+}

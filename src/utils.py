@@ -38,3 +38,16 @@ def clean_title(raw_title):
     return title.strip().lower()
 
 
+def get_ps3_title_from_sfo(sfo_path):
+    try:
+        with open(sfo_path, "rb") as f:
+            content = f.read()
+            title_index = content.find(b'TITLE')  # Look for 'TITLE' field
+            if title_index != -1:
+                # Very naive parsing, not bulletproof, just works for many
+                start = title_index + 0x30
+                end = content.find(b'\x00', start)
+                return content[start:end].decode('utf-8', errors='ignore')
+    except Exception as e:
+        print(f"Error parsing {sfo_path}: {e}")
+    return None
