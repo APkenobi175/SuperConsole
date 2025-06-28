@@ -20,6 +20,8 @@ from kivy.graphics import Color, Rectangle, Line
 from src.romScanner import scan_roms
 from src.gameLauncher import launch_game
 from src.Recent import load_recent as load_recent_games, save_recent
+from kivy.utils import platform
+from kivy.core.window import Keyboard
 
 RECENT_FILE = "recent.json"
 FAVORITES_FILE = "favorites.json"
@@ -116,7 +118,8 @@ class PlatformScreen(Screen):
         layout = GridLayout(cols=4, spacing=10, padding=10, size_hint_y=None)
         layout.bind(minimum_height=layout.setter('height'))
 
-        global focused_game_buttons
+        global focused_game_buttons, focused_game_index
+
         focused_game_buttons = []
 
         for game in games:
@@ -125,7 +128,8 @@ class PlatformScreen(Screen):
             focused_game_buttons.append(button)
 
         if focused_game_buttons:
-            focused_game_buttons[0].set_focus(True)
+            focused_game_index = 0
+            focused_game_buttons[focused_game_index].set_focus(True)
 
         scroll = ScrollView(size_hint=(1, 1))
         scroll.add_widget(layout)
@@ -210,7 +214,36 @@ class HomeScreen(Screen):
         return scroll
 
 class SuperConsoleLauncher(App):
+    def on_key_down(self, window, keycode, scancode, codepoint, modifiers):
+        global focused_game_index, focused_game_buttons
+
+        key_name = keycode[1] if isinstance(keycode, tuple) else keycode
+        print("Key pressed:", key_name)
+
+        if not focused_game_buttons:
+            return False
+
+        focused_game_buttons[focused_game_index].set_focus(False)
+
+        if key_name == 'up':
+            focused_game_index = max(0, focused_game_index - 4)
+        elif key_name == 'down':
+            focused_game_index = min(len(focused_game_buttons) - 1, focused_game_index + 4)
+        elif key_name == 'left':
+            focused_game_index = max(0, focused_game_index - 1)
+        elif key_name == 'right':
+            focused_game_index = min(len(focused_game_buttons) - 1, focused_game_index + 1)
+        elif key_name in ('enter', 'numpadenter'):
+            focused_game_buttons[focused_game_index].dispatch('on_press')
+            return True
+
+        focused_game_buttons[focused_game_index].set_focus(True)
+        return True
+
     def build(self):
+        Window.bind(on_key_down=self.on_key_down)
+        Window.bind(on_joy_hat=self.on_joy_hat)
+        Window.bind(on_joy_axis=self.on_joy_axis)
         screen_width, screen_height = Window.system_size
         Window.size = (screen_width, screen_height)
         Window.borderless = False
@@ -288,8 +321,26 @@ class SuperConsoleLauncher(App):
     def switch_platform(self, platform, *args):
         self.sm.current = platform
 
+        # 👉 Refresh focus state if it's a platform screen
+        if platform != "Home" and platform in self.platforms:
+            screen = self.sm.get_screen(platform)
+            global focused_game_buttons, focused_game_index
+
+            focused_game_buttons = []
+            focused_game_index = 0
+
+            # Rebuild focus list
+            layout = screen.children[0].children[0]  # ScrollView -> GridLayout
+            for child in reversed(layout.children):  # reversed = top-to-bottom order
+                if isinstance(child, GameButton):
+                    focused_game_buttons.append(child)
+
+            if focused_game_buttons:
+                focused_game_buttons[focused_game_index].set_focus(True)
+
     def on_joy_button_down(self, window, stickid, button):
         global focused_game_index, focused_game_buttons
+        print("Controller button pressed:", button)
 
         if button == 4:  # LB
             self.current_tab_index = (self.current_tab_index - 1) % len(self.tab_order)
@@ -322,3 +373,47 @@ class SuperConsoleLauncher(App):
                 focused_game_buttons[focused_game_index].set_focus(False)
                 focused_game_index = min(len(focused_game_buttons) - 1, focused_game_index + 1)
                 focused_game_buttons[focused_game_index].set_focus(True)
+
+    def on_joy_hat(self, window, stickid, hatid, value):
+        global focused_game_index, focused_game_buttons
+        print("D-pad (hat) input:", value)
+        x, y = value
+
+        if focused_game_buttons:
+            focused_game_buttons[focused_game_index].set_focus(False)
+
+            if y == 1:  # UP
+                focused_game_index = max(0, focused_game_index - 4)
+            elif y == -1:  # DOWN
+                focused_game_index = min(len(focused_game_buttons) - 1, focused_game_index + 4)
+            elif x == -1:  # LEFT
+                focused_game_index = max(0, focused_game_index - 1)
+            elif x == 1:  # RIGHT
+                focused_game_index = min(len(focused_game_buttons) - 1, focused_game_index + 1)
+
+            focused_game_buttons[focused_game_index].set_focus(True)
+
+    def on_joy_axis(self, window, stickid, axisid, value):
+        # Optional: Add cooldown logic to prevent spamming input
+        print(f"Analog axis {axisid} value: {value}")
+        threshold = 0.6
+        global focused_game_index, focused_game_buttons
+
+        if abs(value) < threshold:
+            return  # Ignore small movements
+
+        if focused_game_buttons:
+            focused_game_buttons[focused_game_index].set_focus(False)
+
+            if axisid == 0:  # Left/Right
+                if value > threshold:
+                    focused_game_index = min(len(focused_game_buttons) - 1, focused_game_index + 1)
+                elif value < -threshold:
+                    focused_game_index = max(0, focused_game_index - 1)
+            elif axisid == 1:  # Up/Down
+                if value > threshold:
+                    focused_game_index = min(len(focused_game_buttons) - 1, focused_game_index + 4)
+                elif value < -threshold:
+                    focused_game_index = max(0, focused_game_index - 4)
+
+            focused_game_buttons[focused_game_index].set_focus(True)
