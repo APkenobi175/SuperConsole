@@ -3,6 +3,9 @@ import os
 import json
 from functools import partial
 
+'''
+KIVY UI IMPORTS IN CASE I WANT TO COME BACK TO IT
+
 from kivy.app import App
 from kivy.core.window import Window
 from kivy.uix.boxlayout import BoxLayout
@@ -16,12 +19,14 @@ from kivy.uix.textinput import TextInput
 from kivy.utils import get_color_from_hex
 from kivy.uix.anchorlayout import AnchorLayout
 from kivy.graphics import Color, Rectangle, Line
+from kivy.utils import platform
+from kivy.core.window import Keyboard
 
+'''
 from src.romScanner import scan_roms
 from src.gameLauncher import launch_game
 from src.Recent import load_recent as load_recent_games, save_recent
-from kivy.utils import platform
-from kivy.core.window import Keyboard
+
 
 RECENT_FILE = "recent.json"
 FAVORITES_FILE = "favorites.json"
@@ -50,6 +55,7 @@ def add_to_recent(game_info):
     with open(RECENT_FILE, 'w') as f:
         json.dump(recent, f)
 
+'''
 class GameButton(ButtonBehavior, BoxLayout):
     def __init__(self, game_info, **kwargs):
         super(GameButton, self).__init__(orientation='vertical', size_hint_y=None, height=250, **kwargs)
@@ -417,3 +423,19 @@ class SuperConsoleLauncher(App):
                     focused_game_index = max(0, focused_game_index - 4)
 
             focused_game_buttons[focused_game_index].set_focus(True)
+            
+            
+            KIVY UI LOGIC COMMENTED OUT IN CASE I WOULD LIKE TO COME BACK TO IT
+            
+            
+            
+            
+'''
+
+
+
+'''
+
+PySide 6 UI LOGIC
+
+'''
