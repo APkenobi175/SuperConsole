@@ -412,6 +412,8 @@ class SuperConsoleLauncher(App):
             return True
 
         focused_game_buttons[focused_game_index].set_focus(True)
+        self.scroll_to_focused_game()
+
         return True
 
     def update_hud_context(self, context):
@@ -426,6 +428,18 @@ class SuperConsoleLauncher(App):
             self.hud.set_actions(a_text="Search")
         elif context in ["favorites", "recently_played"]:
             self.hud.set_actions(a_text="Play", y_text="Toggle Favorite")
+
+    def scroll_to_focused_game(self):
+        current_screen = self.sm.get_screen(self.sm.current)
+        if hasattr(current_screen, 'children') and current_screen.children:
+            boxlayout = current_screen.children[0]  # Vertical layout
+            if boxlayout.children:
+                scroll = boxlayout.children[0]  # ScrollView
+                if hasattr(scroll, 'children') and scroll.children:
+                    grid = scroll.children[0]  # GridLayout inside ScrollView
+                    if 0 <= focused_game_index < len(focused_game_buttons):
+                        target = focused_game_buttons[focused_game_index]
+                        scroll.scroll_to(target)
 
     def build(self):
         Window.bind(on_key_down=self.on_key_down)
@@ -670,6 +684,7 @@ class SuperConsoleLauncher(App):
 
             if focused_game_buttons:
                 focused_game_buttons[focused_game_index].set_focus(True)
+                self.scroll_to_focused_game()
 
     def on_joy_axis(self, window, stickid, axisid, value):
         # Optional: Add cooldown logic to prevent spamming input
@@ -695,7 +710,7 @@ class SuperConsoleLauncher(App):
                     focused_game_index = max(0, focused_game_index - 5)
 
             focused_game_buttons[focused_game_index].set_focus(True)
-
+            self.scroll_to_focused_game()
 
 
 class IconButton(ButtonBehavior, BoxLayout):
