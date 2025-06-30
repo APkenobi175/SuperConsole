@@ -660,9 +660,9 @@ class SuperConsoleLauncher(App):
                         self.tab_buttons[k].highlight(i == focused_tab_index)
                     return
                 else:
-                    focused_game_index = max(0, focused_game_index - 4)
+                    focused_game_index = max(0, focused_game_index - 5)
             elif y == -1:
-                focused_game_index = min(len(focused_game_buttons) - 1, focused_game_index + 4)
+                focused_game_index = min(len(focused_game_buttons) - 1, focused_game_index + 5)
             elif x == -1:
                 focused_game_index = max(0, focused_game_index - 1)
             elif x == 1:
@@ -690,9 +690,9 @@ class SuperConsoleLauncher(App):
                     focused_game_index = max(0, focused_game_index - 1)
             elif axisid == 1:  # Up/Down
                 if value > threshold:
-                    focused_game_index = min(len(focused_game_buttons) - 1, focused_game_index + 4)
+                    focused_game_index = min(len(focused_game_buttons) - 1, focused_game_index + 5)
                 elif value < -threshold:
-                    focused_game_index = max(0, focused_game_index - 4)
+                    focused_game_index = max(0, focused_game_index - 5)
 
             focused_game_buttons[focused_game_index].set_focus(True)
 
