@@ -187,41 +187,58 @@ class HomeScreen(Screen):
     def _rebuild_content(self):
         self.dynamic_section.clear_widgets()
 
-        fav_label = Label(text="★ Favorites", size_hint_y=None, height=30, color=(1, 1, 1, 1))
-        fav_grid = self._create_game_grid(load_favorites())
-        self.dynamic_section.add_widget(fav_label)
-        self.dynamic_section.add_widget(self._wrap_scroll(fav_grid))
+        total_height = 0  # Track total height manually
 
+        # --- Favorites Section ---
+        favorites = load_favorites()
+        if favorites:
+            fav_section = BoxLayout(orientation='vertical', size_hint_y=None, spacing=5)
+            fav_label = Label(text="★ Favorites", size_hint_y=None, height=30, color=(1, 1, 1, 1))
+            fav_grid = self._create_game_grid(favorites)
+            wrapped_fav_scroll = self._wrap_scroll(fav_grid)
+
+            fav_section.add_widget(fav_label)
+            fav_section.add_widget(wrapped_fav_scroll)
+
+            fav_section.height = fav_label.height + wrapped_fav_scroll.height + 10
+            total_height += fav_section.height
+            self.dynamic_section.add_widget(fav_section)
+
+        # --- Recently Played Section ---
+        recent_section = BoxLayout(orientation='vertical', size_hint_y=None, spacing=5)
         recent_label = Label(text="🕹 Recently Played", size_hint_y=None, height=30, color=(1, 1, 1, 1))
-        recent_games = load_recent_games()
+
         recent_grid = GridLayout(cols=5, spacing=10, padding=10, size_hint_y=None, height=250)
-        for game in recent_games[:5]:
+        for game in load_recent_games()[:5]:
             recent_grid.add_widget(GameButton(game))
 
-        self.dynamic_section.add_widget(recent_label)
-        self.dynamic_section.add_widget(recent_grid)
+        recent_section.add_widget(recent_label)
+        recent_section.add_widget(recent_grid)
+        recent_section.height = recent_label.height + recent_grid.height + 10
+        total_height += recent_section.height
+        self.dynamic_section.add_widget(recent_section)
 
-        # Xbox and Steam buttons
-        button_bar = BoxLayout(size_hint_y=None, height=60, spacing=20, padding=[20, 10])
-        steam_btn = GameButton({
-            "title": "Steam",
-            "platform": "External",
-            "rom_path": "",
-            "cover_path": "assets/steam.png"
-        })
+        # --- Steam and Xbox Buttons ---
+        button_bar = BoxLayout(size_hint=(None, None), height=170, spacing=40, padding=[10, 10])
+        button_bar.size_hint_x = None
+        button_bar.width = 360  # 2 x 150 width + spacing
+
+        steam_btn = IconButton("assets/steam.png", "Steam")
         steam_btn.on_press = lambda: webbrowser.open("steam://open/bigpicture")
 
-        xbox_btn = GameButton({
-            "title": "Xbox",
-            "platform": "External",
-            "rom_path": "",
-            "cover_path": "assets/xbox.png"
-        })
+        xbox_btn = IconButton("assets/xbox.png", "Xbox")
         xbox_btn.on_press = lambda: os.system("start xbox:" if platform == "win" else "")
 
         button_bar.add_widget(steam_btn)
         button_bar.add_widget(xbox_btn)
-        self.dynamic_section.add_widget(button_bar)
+
+        centered_buttons = AnchorLayout(anchor_x='center', anchor_y='top', size_hint_y=None, height=button_bar.height)
+        centered_buttons.add_widget(button_bar)
+        total_height += centered_buttons.height
+        self.dynamic_section.add_widget(centered_buttons)
+
+        # --- Final Height ---
+        self.dynamic_section.height = total_height + 80
 
     def on_search(self, instance, value):
         self.dynamic_section.clear_widgets()
@@ -236,7 +253,8 @@ class HomeScreen(Screen):
 
     def _create_game_grid(self, game_list):
         layout = GridLayout(cols=4, spacing=10, padding=10, size_hint_y=None)
-        layout.bind(minimum_height=layout.setter('height'))
+        row_count = (len(game_list) + 3) // 4  # 4 columns
+        layout.height = row_count * 250 + (row_count - 1) * 10 + 20  # 250px per GameButton, plus spacing + padding
         for game in game_list:
             layout.add_widget(GameButton(game))
         return layout
@@ -329,9 +347,6 @@ class SuperConsoleLauncher(App):
             screen = PlatformScreen(platform, self.platforms[platform])
             self.sm.add_widget(screen)
 
-        # Add Steam button
-        steam_btn = create_icon_text_button("assets/steam.png", "Steam", lambda x: webbrowser.open("steam://open/bigpicture"), "Steam")
-        tab_bar.add_widget(steam_btn)
 
 
 
@@ -499,6 +514,33 @@ class SuperConsoleLauncher(App):
                     focused_game_index = max(0, focused_game_index - 4)
 
             focused_game_buttons[focused_game_index].set_focus(True)
+
+
+
+class IconButton(ButtonBehavior, BoxLayout):
+    def __init__(self, image_path, label_text, **kwargs):
+        super(IconButton, self).__init__(orientation='vertical', size_hint=(None, None), size=(150, 150), **kwargs)
+        self.padding = 10
+        self.spacing = 5
+
+        self.image = KivyImage(source=image_path, size_hint=(1, 0.8))
+        self.label = Label(text=label_text, font_size=14, color=(1, 1, 1, 1), size_hint=(1, 0.2))
+
+        self.add_widget(self.image)
+        self.add_widget(self.label)
+
+        with self.canvas.before:
+            self.bg_color = Color(1, 1, 1, 0)  # No highlight initially
+            self.rect = Rectangle(size=self.size, pos=self.pos)
+        self.bind(size=self.update_rect, pos=self.update_rect)
+
+    def update_rect(self, *args):
+        self.rect.size = self.size
+        self.rect.pos = self.pos
+
+    def set_focus(self, focused):
+        self.bg_color.rgba = (0.2, 0.6, 1, 0.4) if focused else (1, 1, 1, 0)
+
             
 
             
