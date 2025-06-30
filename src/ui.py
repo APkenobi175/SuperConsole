@@ -57,21 +57,90 @@ def add_to_recent(game_info):
         json.dump(recent, f)
 
 
-class GameButton(ButtonBehavior, BoxLayout):
+from kivy.uix.relativelayout import RelativeLayout
+from kivy.uix.button import Button
+from kivy.uix.floatlayout import FloatLayout
+
+
+from kivy.uix.floatlayout import FloatLayout
+from kivy.uix.image import Image as KivyImage
+from kivy.uix.label import Label
+from kivy.graphics import Color, Rectangle
+from kivy.uix.behaviors import ButtonBehavior
+import json
+import os
+
+
+class GameButton(ButtonBehavior, FloatLayout):
     def __init__(self, game_info, **kwargs):
-        super(GameButton, self).__init__(orientation='vertical', size_hint_y=None, height=250, **kwargs)
+        super(GameButton, self).__init__(size_hint=(1, None), height=250, **kwargs)
         self.game_info = game_info
+        self.is_favorited = self._is_in_favorites()
 
-        self.image = KivyImage(source=game_info['cover_path'], allow_stretch=False, keep_ratio=True, size_hint_y=0.85)
-        self.label = Label(text=game_info['title'], size_hint_y=0.15, font_size=14, color=(1, 1, 1, 1))
+        # Fallback cover image if missing
+        image_path = game_info.get("cover_path") or "assets/placeholder.png"
+        if not os.path.exists(image_path):
+            image_path = "assets/placeholder.png"
 
+        # Game cover image
+        self.image = KivyImage(
+            source=image_path,
+            allow_stretch=True,
+            keep_ratio=True,
+            size_hint=(1, 0.85),
+            pos_hint={'x': 0, 'top': 1}
+        )
         self.add_widget(self.image)
+
+        # Game title label
+        self.label = Label(
+            text=game_info["title"],
+            size_hint=(1, 0.15),
+            pos_hint={"x": 0, "y": 0},
+            halign="center",
+            valign="middle",
+            font_size=12,
+            color=(1, 1, 1, 1),
+        )
+        self.label.bind(size=self.label.setter("text_size"))
         self.add_widget(self.label)
 
+        # Favorite star icon (top-right)
+        self.star_button = StarButton(
+            source="assets/star_filled.png" if self.is_favorited else "assets/star_empty.png",
+            size_hint=(None, None),
+            size=(32, 32),
+            pos_hint={"right": 1, "top": 1}
+        )
+        self.star_button.bind(on_press=self.toggle_favorite)
+        self.add_widget(self.star_button)
+
+        # Focus highlight
         with self.canvas.before:
             self.bg_color = Color(1, 1, 1, 0)
             self.rect = Rectangle(size=self.size, pos=self.pos)
         self.bind(size=self.update_rect, pos=self.update_rect)
+
+    def _is_in_favorites(self):
+        favorites = load_favorites()
+        return any(f["title"] == self.game_info["title"] for f in favorites)
+
+    def toggle_favorite(self, *args):
+        favorites = load_favorites()
+        title = self.game_info["title"]
+
+        if self.is_favorited:
+            favorites = [f for f in favorites if f["title"] != title]
+            self.is_favorited = False
+        else:
+            favorites.insert(0, self.game_info)
+            self.is_favorited = True
+
+        with open(FAVORITES_FILE, "w") as f:
+            json.dump(favorites, f)
+
+        self.star_button.source = "assets/star_filled.png" if self.is_favorited else "assets/star_empty.png"
+        self.star_button.reload()
 
     def update_rect(self, *args):
         self.rect.size = self.size
@@ -83,6 +152,12 @@ class GameButton(ButtonBehavior, BoxLayout):
     def on_press(self):
         add_to_recent(self.game_info)
         launch_game(self.game_info['platform'], self.game_info['rom_path'])
+
+
+class StarButton(ButtonBehavior, KivyImage):
+    def __init__(self, **kwargs):
+        super(StarButton, self).__init__(**kwargs)
+
 
 class TabButton(ButtonBehavior, BoxLayout):
     def __init__(self, icon_path=None, text_label="", **kwargs):
@@ -144,6 +219,8 @@ class PlatformScreen(Screen):
 
 class HomeScreen(Screen):
     def __init__(self, all_games, **kwargs):
+
+
         super(HomeScreen, self).__init__(name="Home", **kwargs)
         self.all_games = all_games
 
@@ -252,11 +329,19 @@ class HomeScreen(Screen):
             self.dynamic_section.add_widget(self._wrap_scroll(result_grid))
 
     def _create_game_grid(self, game_list):
-        layout = GridLayout(cols=4, spacing=10, padding=10, size_hint_y=None)
+        layout = GridLayout(
+            cols=4,
+            spacing=20,
+            padding=[40, 10],
+            size_hint=(1, None)
+        )
+
         row_count = (len(game_list) + 3) // 4  # 4 columns
-        layout.height = row_count * 250 + (row_count - 1) * 10 + 20  # 250px per GameButton, plus spacing + padding
+        layout.height = row_count * 250 + (row_count - 1) * 20 + 20  # Adjust height based on rows
+
         for game in game_list:
             layout.add_widget(GameButton(game))
+
         return layout
 
     def _wrap_scroll(self, grid):
@@ -433,6 +518,10 @@ class SuperConsoleLauncher(App):
                 focused_game_buttons[focused_game_index].set_focus(False)
                 focused_game_index = min(len(focused_game_buttons) - 1, focused_game_index + 1)
                 focused_game_buttons[focused_game_index].set_focus(True)
+
+        elif button == 3:  # Y button
+            if focus_mode == "grid" and 0 <= focused_game_index < len(focused_game_buttons):
+                focused_game_buttons[focused_game_index].star_button.dispatch('on_press')
 
     def on_joy_hat(self, window, stickid, hatid, value):
         global focused_game_index, focused_game_buttons, focus_mode, focused_tab_index
