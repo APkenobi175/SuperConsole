@@ -270,7 +270,8 @@ class HomeScreen(Screen):
         favorites = load_favorites()
         if favorites:
             fav_section = BoxLayout(orientation='vertical', size_hint_y=None, spacing=5)
-            fav_label = Label(text="★ Favorites", size_hint_y=None, height=30, color=(1, 1, 1, 1))
+            fav_label = self._create_section_header("assets/star.png", "Favorites")
+
             fav_grid = self._create_game_grid(favorites)
             wrapped_fav_scroll = self._wrap_scroll(fav_grid)
 
@@ -283,7 +284,7 @@ class HomeScreen(Screen):
 
         # --- Recently Played Section ---
         recent_section = BoxLayout(orientation='vertical', size_hint_y=None, spacing=5)
-        recent_label = Label(text="🕹 Recently Played", size_hint_y=None, height=30, color=(1, 1, 1, 1))
+        recent_label = self._create_section_header("assets/joystick.png", "Recently Played")
 
         recent_grid = GridLayout(cols=5, spacing=10, padding=10, size_hint_y=None, height=250)
         for game in load_recent_games()[:5]:
@@ -349,6 +350,35 @@ class HomeScreen(Screen):
         scroll.add_widget(grid)
         return scroll
 
+    def _create_section_header(self, icon_path, label_text):
+        header_box = BoxLayout(
+            orientation="horizontal",
+            spacing=5,
+            size_hint_y=None,
+            height=30,
+            size_hint_x=None,
+            width=200,
+            pos_hint={"center_x": 0.5}  # Center the whole section header
+        )
+
+        icon = KivyImage(source=icon_path, size_hint=(None, None), size=(24, 24))
+        label = Label(
+            text=label_text,
+            color=(1, 1, 1, 1),
+            size_hint=(None, 1),
+            width=160,
+            halign="left",
+            valign="middle",
+            font_size = 19,
+            bold = True
+        )
+        label.bind(size=lambda inst, val: setattr(inst, 'text_size', val))
+
+        header_box.add_widget(icon)
+        header_box.add_widget(label)
+        return header_box
+
+
 class SuperConsoleLauncher(App):
     def on_key_down(self, window, keycode, scancode, codepoint, modifiers):
         global focused_game_index, focused_game_buttons
@@ -376,6 +406,19 @@ class SuperConsoleLauncher(App):
         focused_game_buttons[focused_game_index].set_focus(True)
         return True
 
+    def update_hud_context(self, context):
+        if not hasattr(self, "hud"):
+            return
+
+        if context == "tab":
+            self.hud.set_actions(a_text="Select")
+        elif context == "grid":
+            self.hud.set_actions(a_text="Play", y_text="Toggle Favorite")
+        elif context == "search_bar":
+            self.hud.set_actions(a_text="Search")
+        elif context in ["favorites", "recently_played"]:
+            self.hud.set_actions(a_text="Play", y_text="Toggle Favorite")
+
     def build(self):
         Window.bind(on_key_down=self.on_key_down)
         Window.bind(on_joy_hat=self.on_joy_hat)
@@ -399,11 +442,16 @@ class SuperConsoleLauncher(App):
 
         self.sm.add_widget(HomeScreen(all_games))
 
+        # Tab bar with LB and RB icons
         tab_bar = BoxLayout(size_hint_y=None, height=50, spacing=5, padding=5)
         self.tab_buttons = {}
         self.tab_order = []
         global focused_tab_index
         focused_tab_index = 0
+
+        # Add LB icon to tab bar (left side)
+        lb_icon = KivyImage(source="assets/button_lb.png", size_hint=(None, 1), width=50)
+        tab_bar.add_widget(lb_icon)
 
         def highlight_tab(tag):
             global focused_tab_index
@@ -432,14 +480,14 @@ class SuperConsoleLauncher(App):
             screen = PlatformScreen(platform, self.platforms[platform])
             self.sm.add_widget(screen)
 
-
-
+        # Add RB icon to tab bar (right side)
+        rb_icon = KivyImage(source="assets/button_rb.png", size_hint=(None, 1), width=50)
+        tab_bar.add_widget(rb_icon)
 
         root.add_widget(tab_bar)
         root.add_widget(self.sm)
 
         self.current_tab_index = self.tab_order.index("Home")
-
 
         self.tab_buttons[self.tab_order[focused_tab_index]].highlight(True)
 
@@ -451,6 +499,11 @@ class SuperConsoleLauncher(App):
 
         global focus_mode
         focus_mode = "tab"
+        self.hud = HUD()
+        hud_anchor = AnchorLayout(anchor_x='right', anchor_y='bottom', size_hint=(1, 1))
+        hud_anchor.add_widget(self.hud)
+        root.add_widget(hud_anchor)
+        self.update_hud_context("tab")
 
         return root
 
@@ -492,12 +545,6 @@ class SuperConsoleLauncher(App):
             self.current_tab_index = (self.current_tab_index + 1) % len(self.tab_order)
             tag = self.tab_order[self.current_tab_index]
             self.tab_buttons[tag].dispatch('on_release')
-        elif button == 0:  # A button
-            if focus_mode == "grid" and 0 <= focused_game_index < len(focused_game_buttons):
-                focused_game_buttons[focused_game_index].dispatch('on_press')
-            elif focus_mode == "tab":
-                tag = self.tab_order[focused_tab_index]
-                self.tab_buttons[tag].dispatch('on_release')
         elif button == 11:  # D-pad up
             if focused_game_buttons:
                 focused_game_buttons[focused_game_index].set_focus(False)
@@ -519,8 +566,17 @@ class SuperConsoleLauncher(App):
                 focused_game_index = min(len(focused_game_buttons) - 1, focused_game_index + 1)
                 focused_game_buttons[focused_game_index].set_focus(True)
 
+        elif button == 0:  # A button
+            if focus_mode == "grid" and 0 <= focused_game_index < len(focused_game_buttons):
+                self.update_hud_context("grid")  # ✅ ADD
+                focused_game_buttons[focused_game_index].dispatch('on_press')
+            elif focus_mode == "tab":
+                self.update_hud_context("tab")  # ✅ ADD
+                tag = self.tab_order[focused_tab_index]
+                self.tab_buttons[tag].dispatch('on_release')
         elif button == 3:  # Y button
             if focus_mode == "grid" and 0 <= focused_game_index < len(focused_game_buttons):
+                self.update_hud_context("grid")  # ✅ ADD
                 focused_game_buttons[focused_game_index].star_button.dispatch('on_press')
 
     def on_joy_hat(self, window, stickid, hatid, value):
@@ -557,6 +613,7 @@ class SuperConsoleLauncher(App):
                             return
 
         elif focus_mode == "grid":
+            self.update_hud_context("grid")
             if focused_game_buttons:
                 focused_game_buttons[focused_game_index].set_focus(False)
 
@@ -564,6 +621,7 @@ class SuperConsoleLauncher(App):
                 if focused_game_index < 4:
                     # Top row → go to tab bar
                     focus_mode = "tab"
+                    self.update_hud_context("tab")
                     for i, k in enumerate(self.tab_order):
                         self.tab_buttons[k].highlight(i == focused_tab_index)
                     return
@@ -632,12 +690,61 @@ class IconButton(ButtonBehavior, BoxLayout):
 
             
 
-            
-            
-            
-            
+class HUD(RelativeLayout):
+    def __init__(self, **kwargs):
+        super().__init__(size_hint=(None, None), size=(200, 200), **kwargs)
+        self.pos_hint = {"right": 1, "bottom": 1}
 
+        self.a_label = self._create_button("assets/button_a.png")
+        self.b_label = self._create_button("assets/button_b.png")
+        self.x_label = self._create_button("assets/button_x.png")
+        self.y_label = self._create_button("assets/button_y.png")
 
+        # Position buttons in diamond shape (tighter)
+        self.y_label.pos_hint = {"center_x": 0.5, "top": 1}             # Y
+        self.a_label.pos_hint = {"center_x": 0.5, "y": 0}               # A
+        self.x_label.pos_hint = {"x": 0, "center_y": 0.5}               # X
+        self.b_label.pos_hint = {"right": 1, "center_y": 0.5}           # B
+
+        self.add_widget(self.y_label)
+        self.add_widget(self.a_label)
+        self.add_widget(self.x_label)
+        self.add_widget(self.b_label)
+
+    def _create_button(self, icon_path):
+        from kivy.uix.relativelayout import RelativeLayout
+
+        container = RelativeLayout(size_hint=(None, None), size=(60, 70))
+
+        icon = KivyImage(source=icon_path, size_hint=(None, None), size=(32, 32), pos_hint={"center_x": 0.5, "top": 1})
+
+        label = Label(
+            text="",
+            font_size=11,
+            color=(1, 1, 1, 1),
+            halign='center',
+            valign='top',
+            size_hint=(None, None),
+            size=(80, 30),
+            pos_hint={"center_x": 0.5, "y": 0}
+        )
+        label.bind(size=lambda inst, val: setattr(inst, 'text_size', val))
+
+        container.icon = icon
+        container.label = label
+        container.add_widget(icon)
+        container.add_widget(label)
+
+        return container
+
+    def set_actions(self, a_text=None, b_text=None, x_text=None, y_text=None):
+        self.a_label.label.text = a_text or ""
+        self.b_label.label.text = b_text or ""
+        self.x_label.label.text = x_text or ""
+        self.y_label.label.text = y_text or ""
+
+    def _update_text_size(self, instance, size):
+        instance.text_size = (instance.width, None)
 
 
 '''
