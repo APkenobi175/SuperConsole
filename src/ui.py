@@ -101,6 +101,7 @@ class GameButton(ButtonBehavior, FloatLayout):
             valign="middle",
             font_size=12,
             color=(1, 1, 1, 1),
+            bold=True
         )
         self.label.bind(size=self.label.setter("text_size"))
         self.add_widget(self.label)
@@ -193,29 +194,36 @@ class TabButton(ButtonBehavior, BoxLayout):
         new_color = self.bg_color_active if active else self.bg_color_default
         self.rect_color.rgba = new_color
 
+
 class PlatformScreen(Screen):
     def __init__(self, platform, games, **kwargs):
-        super(PlatformScreen, self).__init__(name=platform, **kwargs)
+        super().__init__(**kwargs)
+        self.name = platform
 
-        layout = GridLayout(cols=5, spacing=10, padding=10, size_hint_y=None)
-        layout.bind(minimum_height=layout.setter('height'))
+        layout = BoxLayout(orientation='vertical')
 
-        global focused_game_buttons, focused_game_index
+        # Title Label
+        title = Label(text=platform, size_hint_y=None, height=50, font_size=24)
+        layout.add_widget(title)
 
-        focused_game_buttons = []
+        # Scrollable Game Grid
+        self.grid = GridLayout(
+            cols=5,
+            spacing=10,
+            padding=10,
+            size_hint_y=None
+        )
+        self.grid.bind(minimum_height=self.grid.setter('height'))
 
         for game in games:
-            button = GameButton(game)
-            layout.add_widget(button)
-            focused_game_buttons.append(button)
+            self.grid.add_widget(GameButton(game))
 
-        if focused_game_buttons:
-            focused_game_index = 0
-            focused_game_buttons[focused_game_index].set_focus(True)
+        scroll_view = ScrollView(size_hint=(1, 1))
+        scroll_view.add_widget(self.grid)
 
-        scroll = ScrollView(size_hint=(1, 1))
-        scroll.add_widget(layout)
-        self.add_widget(scroll)
+        layout.add_widget(scroll_view)
+        self.add_widget(layout)
+
 
 class HomeScreen(Screen):
     def __init__(self, all_games, **kwargs):
@@ -501,9 +509,10 @@ class SuperConsoleLauncher(App):
         global focus_mode
         focus_mode = "tab"
         self.hud = HUD()
-        hud_anchor = AnchorLayout(anchor_x='right', anchor_y='bottom', size_hint=(1, 1))
+        hud_anchor = AnchorLayout(anchor_x='right', anchor_y='bottom', size_hint=(1, None), height=120)
         hud_anchor.add_widget(self.hud)
         root.add_widget(hud_anchor)
+
         self.update_hud_context("tab")
 
         return root
@@ -531,8 +540,21 @@ class SuperConsoleLauncher(App):
                 if isinstance(child, GameButton):
                     child.set_focus(False)
 
-            focused_game_buttons = []
+            # ✅ FIX: Rebuild list of GameButtons (reversed because Kivy adds children in reverse)
+            focused_game_buttons = [
+                child for child in reversed(layout.children)
+                if isinstance(child, GameButton)
+            ]
             focused_game_index = 0
+
+            # ✅ Apply initial focus (if there are games)
+            if focused_game_buttons:
+                focused_game_buttons[focused_game_index].set_focus(True)
+
+            # ✅ Set mode to grid so input works
+            global focus_mode
+            focus_mode = "grid"
+            self.update_hud_context("grid")
 
     def on_joy_button_down(self, window, stickid, button):
         global focused_game_index, focused_game_buttons
@@ -601,7 +623,6 @@ class SuperConsoleLauncher(App):
             elif x == -1:
                 focused_tab_index = (focused_tab_index - 1) % len(self.tab_order)
 
-            # Sync tab highlight and bumper logic
             for i, k in enumerate(self.tab_order):
                 self.tab_buttons[k].highlight(i == focused_tab_index)
             self.current_tab_index = focused_tab_index
@@ -609,18 +630,21 @@ class SuperConsoleLauncher(App):
             if y == -1:  # ↓ into grid
                 screen = self.sm.get_screen(self.sm.current)
                 if hasattr(screen, 'children') and screen.children:
-                    scroll = screen.children[0]
+                    boxlayout = screen.children[0]  # This is the vertical layout
+                    scroll = boxlayout.children[0]  # This is the ScrollView
                     if hasattr(scroll, 'children') and scroll.children:
-                        layout = scroll.children[0]
+                        grid = scroll.children[0]  # This is the GridLayout with GameButtons
                         focused_game_buttons = [
-                            child for child in reversed(layout.children)
+                            child for child in reversed(grid.children)
                             if isinstance(child, GameButton)
                         ]
+                        focused_game_index = 0
+                        focus_mode = "grid"
                         if focused_game_buttons:
-                            focus_mode = "grid"
-                            focused_game_index = 0
                             focused_game_buttons[focused_game_index].set_focus(True)
-                            return
+                            self.update_hud_context("grid")
+                        return
+
 
         elif focus_mode == "grid":
             self.update_hud_context("grid")
