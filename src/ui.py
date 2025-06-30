@@ -161,7 +161,7 @@ class StarButton(ButtonBehavior, KivyImage):
 
 class TabButton(ButtonBehavior, BoxLayout):
     def __init__(self, icon_path=None, text_label="", **kwargs):
-        super(TabButton, self).__init__(orientation='horizontal', spacing=5, padding=[10, 10], size_hint=(None, 1), width=160, **kwargs)
+        super(TabButton, self).__init__(orientation='horizontal', spacing=5, padding=[10, 10], size_hint=(1, 1), width=160, **kwargs)
         self.icon_path = icon_path
         self.bg_color_default = get_color_from_hex("#1b2838")
         self.bg_color_active = get_color_from_hex("#2a475e")
@@ -197,7 +197,7 @@ class PlatformScreen(Screen):
     def __init__(self, platform, games, **kwargs):
         super(PlatformScreen, self).__init__(name=platform, **kwargs)
 
-        layout = GridLayout(cols=4, spacing=10, padding=10, size_hint_y=None)
+        layout = GridLayout(cols=5, spacing=10, padding=10, size_hint_y=None)
         layout.bind(minimum_height=layout.setter('height'))
 
         global focused_game_buttons, focused_game_index
@@ -331,13 +331,13 @@ class HomeScreen(Screen):
 
     def _create_game_grid(self, game_list):
         layout = GridLayout(
-            cols=4,
+            cols=5,
             spacing=20,
             padding=[40, 10],
             size_hint=(1, None)
         )
 
-        row_count = (len(game_list) + 3) // 4  # 4 columns
+        row_count = (len(game_list) + 4) // 5  # 4 columns
         layout.height = row_count * 250 + (row_count - 1) * 20 + 20  # Adjust height based on rows
 
         for game in game_list:
@@ -443,7 +443,8 @@ class SuperConsoleLauncher(App):
         self.sm.add_widget(HomeScreen(all_games))
 
         # Tab bar with LB and RB icons
-        tab_bar = BoxLayout(size_hint_y=None, height=50, spacing=5, padding=5)
+        self.tab_bar = BoxLayout(size_hint=(1, None), height=50, spacing=5, padding=[10, 0])
+
         self.tab_buttons = {}
         self.tab_order = []
         global focused_tab_index
@@ -451,7 +452,7 @@ class SuperConsoleLauncher(App):
 
         # Add LB icon to tab bar (left side)
         lb_icon = KivyImage(source="assets/button_lb.png", size_hint=(None, 1), width=50)
-        tab_bar.add_widget(lb_icon)
+        self.tab_bar.add_widget(lb_icon)
 
         def highlight_tab(tag):
             global focused_tab_index
@@ -471,20 +472,20 @@ class SuperConsoleLauncher(App):
 
         # Add Home button
         home_btn = create_icon_text_button("assets/home.png", "Home", lambda x: self.switch_platform("Home"), "Home")
-        tab_bar.add_widget(home_btn)
+        self.tab_bar.add_widget(home_btn)
 
         # Add platform buttons
         for platform in self.platforms:
             btn = create_icon_text_button(None, platform, lambda x, plat=platform: self.switch_platform(plat), platform)
-            tab_bar.add_widget(btn)
+            self.tab_bar.add_widget(btn)
             screen = PlatformScreen(platform, self.platforms[platform])
             self.sm.add_widget(screen)
 
         # Add RB icon to tab bar (right side)
         rb_icon = KivyImage(source="assets/button_rb.png", size_hint=(None, 1), width=50)
-        tab_bar.add_widget(rb_icon)
+        self.tab_bar.add_widget(rb_icon)
 
-        root.add_widget(tab_bar)
+        root.add_widget(self.tab_bar)
         root.add_widget(self.sm)
 
         self.current_tab_index = self.tab_order.index("Home")
@@ -538,10 +539,13 @@ class SuperConsoleLauncher(App):
         print("Controller button pressed:", button)
 
         if button == 4:  # LB
+            self.hud.pulse_button(self.tab_bar.children[0])
             self.current_tab_index = (self.current_tab_index - 1) % len(self.tab_order)
             tag = self.tab_order[self.current_tab_index]
             self.tab_buttons[tag].dispatch('on_release')
+
         elif button == 5:  # RB
+            self.hud.pulse_button(self.tab_bar.children[-1])
             self.current_tab_index = (self.current_tab_index + 1) % len(self.tab_order)
             tag = self.tab_order[self.current_tab_index]
             self.tab_buttons[tag].dispatch('on_release')
@@ -566,7 +570,8 @@ class SuperConsoleLauncher(App):
                 focused_game_index = min(len(focused_game_buttons) - 1, focused_game_index + 1)
                 focused_game_buttons[focused_game_index].set_focus(True)
 
-        elif button == 0:  # A button
+        elif button == 0:
+            self.hud.pulse_button(self.hud.a_label)# A button
             if focus_mode == "grid" and 0 <= focused_game_index < len(focused_game_buttons):
                 self.update_hud_context("grid")  # ✅ ADD
                 focused_game_buttons[focused_game_index].dispatch('on_press')
@@ -574,7 +579,12 @@ class SuperConsoleLauncher(App):
                 self.update_hud_context("tab")  # ✅ ADD
                 tag = self.tab_order[focused_tab_index]
                 self.tab_buttons[tag].dispatch('on_release')
+        elif button == 1:  # B button
+            self.hud.pulse_button(self.hud.b_label)
+        elif button == 2:  # X button
+            self.hud.pulse_button(self.hud.x_label)
         elif button == 3:  # Y button
+            self.hud.pulse_button(self.hud.y_label)
             if focus_mode == "grid" and 0 <= focused_game_index < len(focused_game_buttons):
                 self.update_hud_context("grid")  # ✅ ADD
                 focused_game_buttons[focused_game_index].star_button.dispatch('on_press')
@@ -618,7 +628,7 @@ class SuperConsoleLauncher(App):
                 focused_game_buttons[focused_game_index].set_focus(False)
 
             if y == 1:  # ↑ key
-                if focused_game_index < 4:
+                if focused_game_index < 5:
                     # Top row → go to tab bar
                     focus_mode = "tab"
                     self.update_hud_context("tab")
@@ -710,6 +720,13 @@ class HUD(RelativeLayout):
         self.add_widget(self.a_label)
         self.add_widget(self.x_label)
         self.add_widget(self.b_label)
+
+
+
+    def pulse_button(self, button):
+        from kivy.animation import Animation
+        anim = Animation(size=(70, 70), duration=0.1) + Animation(size=(60, 60), duration=0.1)
+        anim.start(button)
 
     def _create_button(self, icon_path):
         from kivy.uix.relativelayout import RelativeLayout
