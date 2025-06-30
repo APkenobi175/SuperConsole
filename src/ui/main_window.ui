@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>MainWindow</class>
+ <widget class="QMainWindow" name="MainWindow">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>1920</width>
+    <height>1080</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>MainWindow</string>
+  </property>
+  <widget class="QWidget" name="centralwidget">
+   <layout class="QVBoxLayout" name="verticalLayout">
+    <item>
+     <widget class="QLineEdit" name="lineEdit"/>
+    </item>
+    <item>
+     <widget class="QScrollArea" name="scrollArea">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Expanding" vsizetype="Preferred">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <property name="widgetResizable">
+       <bool>true</bool>
+      </property>
+      <widget class="QWidget" name="GameGrid">
+       <property name="geometry">
+        <rect>
+         <x>0</x>
+         <y>0</y>
+         <width>1900</width>
+         <height>54</height>
+        </rect>
+       </property>
+      </widget>
+     </widget>
+    </item>
+    <item>
+     <widget class="QStackedWidget" name="stackedWidget">
+      <property name="sizePolicy">
+       <sizepolicy hsizetype="Fixed" vsizetype="Minimum">
+        <horstretch>0</horstretch>
+        <verstretch>0</verstretch>
+       </sizepolicy>
+      </property>
+      <widget class="QWidget" name="stackedWidgetPage1" native="true">
+       <layout class="QHBoxLayout" name="horizontalLayout">
+        <item>
+         <widget class="QPushButton" name="pushButton">
+          <property name="text">
+           <string>PushButton</string>
+          </property>
+         </widget>
+        </item>
+       </layout>
+      </widget>
+     </widget>
+    </item>
+   </layout>
+  </widget>
+  <widget class="QMenuBar" name="menubar">
+   <property name="geometry">
+    <rect>
+     <x>0</x>
+     <y>0</y>
+     <width>1920</width>
+     <height>33</height>
+    </rect>
+   </property>
+   <widget class="QMenu" name="menuHome">
+    <property name="title">
+     <string>Home</string>
+    </property>
+   </widget>
+   <widget class="QMenu" name="menuXboix">
+    <property name="title">
+     <string>Gamecube</string>
+    </property>
+   </widget>
+   <widget class="QMenu" name="menuWii">
+    <property name="title">
+     <string>Wii</string>
+    </property>
+   </widget>
+   <widget class="QMenu" name="menuWii_U">
+    <property name="title">
+     <string>Wii U</string>
+    </property>
+   </widget>
+   <widget class="QMenu" name="menuN64">
+    <property name="title">
+     <string>N64</string>
+    </property>
+   </widget>
+   <widget class="QMenu" name="menuGBA">
+    <property name="title">
+     <string>GBA</string>
+    </property>
+   </widget>
+   <widget class="QMenu" name="menuPS1">
+    <property name="title">
+     <string>PS1</string>
+    </property>
+   </widget>
+   <widget class="QMenu" name="menuPS2">
+    <property name="title">
+     <string>PS2</string>
+    </property>
+   </widget>
+   <widget class="QMenu" name="menuPS3">
+    <property name="title">
+     <string>PS3</string>
+    </property>
+   </widget>
+   <widget class="QMenu" name="menuXbox">
+    <property name="title">
+     <string>Xbox</string>
+    </property>
+   </widget>
+   <widget class="QMenu" name="menuXbox360">
+    <property name="title">
+     <string>Xbox360</string>
+    </property>
+   </widget>
+   <addaction name="menuHome"/>
+   <addaction name="menuXboix"/>
+   <addaction name="menuWii"/>
+   <addaction name="menuWii_U"/>
+   <addaction name="menuN64"/>
+   <addaction name="menuGBA"/>
+   <addaction name="menuPS1"/>
+   <addaction name="menuPS2"/>
+   <addaction name="menuPS3"/>
+   <addaction name="menuXbox"/>
+   <addaction name="menuXbox360"/>
+  </widget>
+  <widget class="QStatusBar" name="statusbar"/>
+ </widget>
+ <resources/>
+ <connections/>
+</ui>

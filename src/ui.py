@@ -3,8 +3,6 @@ import os
 import json
 from functools import partial
 
-'''
-KIVY UI IMPORTS IN CASE I WANT TO COME BACK TO IT
 
 from kivy.app import App
 from kivy.core.window import Window
@@ -22,7 +20,7 @@ from kivy.graphics import Color, Rectangle, Line
 from kivy.utils import platform
 from kivy.core.window import Keyboard
 
-'''
+
 from src.romScanner import scan_roms
 from src.gameLauncher import launch_game
 from src.Recent import load_recent as load_recent_games, save_recent
@@ -33,6 +31,9 @@ FAVORITES_FILE = "favorites.json"
 
 focused_game_index = 0
 focused_game_buttons = []
+focus_mode = "none"  # can be "tab" or "grid"
+focused_tab_index = 0
+
 
 def load_favorites():
     if os.path.exists(FAVORITES_FILE):
@@ -55,7 +56,7 @@ def add_to_recent(game_info):
     with open(RECENT_FILE, 'w') as f:
         json.dump(recent, f)
 
-'''
+
 class GameButton(ButtonBehavior, BoxLayout):
     def __init__(self, game_info, **kwargs):
         super(GameButton, self).__init__(orientation='vertical', size_hint_y=None, height=250, **kwargs)
@@ -192,9 +193,35 @@ class HomeScreen(Screen):
         self.dynamic_section.add_widget(self._wrap_scroll(fav_grid))
 
         recent_label = Label(text="🕹 Recently Played", size_hint_y=None, height=30, color=(1, 1, 1, 1))
-        recent_grid = self._create_game_grid(load_recent_games())
+        recent_games = load_recent_games()
+        recent_grid = GridLayout(cols=5, spacing=10, padding=10, size_hint_y=None, height=250)
+        for game in recent_games[:5]:
+            recent_grid.add_widget(GameButton(game))
+
         self.dynamic_section.add_widget(recent_label)
-        self.dynamic_section.add_widget(self._wrap_scroll(recent_grid))
+        self.dynamic_section.add_widget(recent_grid)
+
+        # Xbox and Steam buttons
+        button_bar = BoxLayout(size_hint_y=None, height=60, spacing=20, padding=[20, 10])
+        steam_btn = GameButton({
+            "title": "Steam",
+            "platform": "External",
+            "rom_path": "",
+            "cover_path": "assets/steam.png"
+        })
+        steam_btn.on_press = lambda: webbrowser.open("steam://open/bigpicture")
+
+        xbox_btn = GameButton({
+            "title": "Xbox",
+            "platform": "External",
+            "rom_path": "",
+            "cover_path": "assets/xbox.png"
+        })
+        xbox_btn.on_press = lambda: os.system("start xbox:" if platform == "win" else "")
+
+        button_bar.add_widget(steam_btn)
+        button_bar.add_widget(xbox_btn)
+        self.dynamic_section.add_widget(button_bar)
 
     def on_search(self, instance, value):
         self.dynamic_section.clear_widgets()
@@ -272,12 +299,16 @@ class SuperConsoleLauncher(App):
         tab_bar = BoxLayout(size_hint_y=None, height=50, spacing=5, padding=5)
         self.tab_buttons = {}
         self.tab_order = []
+        global focused_tab_index
+        focused_tab_index = 0
 
         def highlight_tab(tag):
-            for k, btn in self.tab_buttons.items():
-                if hasattr(btn, 'highlight'):
-                    btn.highlight(k == tag)
-            self.current_tab_index = self.tab_order.index(tag)
+            global focused_tab_index
+            for i, k in enumerate(self.tab_order):
+                btn = self.tab_buttons[k]
+                btn.highlight(k == tag)
+                if k == tag:
+                    focused_tab_index = i
 
         def create_icon_text_button(icon_path, label_text, callback, tag):
             btn = TabButton(icon_path=icon_path, text_label=label_text)
@@ -302,16 +333,24 @@ class SuperConsoleLauncher(App):
         steam_btn = create_icon_text_button("assets/steam.png", "Steam", lambda x: webbrowser.open("steam://open/bigpicture"), "Steam")
         tab_bar.add_widget(steam_btn)
 
+
+
         root.add_widget(tab_bar)
         root.add_widget(self.sm)
 
         self.current_tab_index = self.tab_order.index("Home")
+
+
+        self.tab_buttons[self.tab_order[focused_tab_index]].highlight(True)
 
         # Bind controller input
         Window.bind(on_joy_button_down=self.on_joy_button_down)
 
         # Initial highlight
         highlight_tab("Home")
+
+        global focus_mode
+        focus_mode = "tab"
 
         return root
 
@@ -327,22 +366,19 @@ class SuperConsoleLauncher(App):
     def switch_platform(self, platform, *args):
         self.sm.current = platform
 
-        # 👉 Refresh focus state if it's a platform screen
         if platform != "Home" and platform in self.platforms:
             screen = self.sm.get_screen(platform)
             global focused_game_buttons, focused_game_index
 
+            layout = screen.children[0].children[0]  # ScrollView -> GridLayout
+
+            # 🔥 Clear all visual highlights before resetting list
+            for child in layout.children:
+                if isinstance(child, GameButton):
+                    child.set_focus(False)
+
             focused_game_buttons = []
             focused_game_index = 0
-
-            # Rebuild focus list
-            layout = screen.children[0].children[0]  # ScrollView -> GridLayout
-            for child in reversed(layout.children):  # reversed = top-to-bottom order
-                if isinstance(child, GameButton):
-                    focused_game_buttons.append(child)
-
-            if focused_game_buttons:
-                focused_game_buttons[focused_game_index].set_focus(True)
 
     def on_joy_button_down(self, window, stickid, button):
         global focused_game_index, focused_game_buttons
@@ -357,8 +393,11 @@ class SuperConsoleLauncher(App):
             tag = self.tab_order[self.current_tab_index]
             self.tab_buttons[tag].dispatch('on_release')
         elif button == 0:  # A button
-            if 0 <= focused_game_index < len(focused_game_buttons):
+            if focus_mode == "grid" and 0 <= focused_game_index < len(focused_game_buttons):
                 focused_game_buttons[focused_game_index].dispatch('on_press')
+            elif focus_mode == "tab":
+                tag = self.tab_order[focused_tab_index]
+                self.tab_buttons[tag].dispatch('on_release')
         elif button == 11:  # D-pad up
             if focused_game_buttons:
                 focused_game_buttons[focused_game_index].set_focus(False)
@@ -381,23 +420,60 @@ class SuperConsoleLauncher(App):
                 focused_game_buttons[focused_game_index].set_focus(True)
 
     def on_joy_hat(self, window, stickid, hatid, value):
-        global focused_game_index, focused_game_buttons
+        global focused_game_index, focused_game_buttons, focus_mode, focused_tab_index
+        print("D-pad event triggered. Focus mode:", focus_mode)
         print("D-pad (hat) input:", value)
         x, y = value
 
-        if focused_game_buttons:
-            focused_game_buttons[focused_game_index].set_focus(False)
+        if focus_mode == "tab":
+            if x == 1:
+                focused_tab_index = (focused_tab_index + 1) % len(self.tab_order)
+            elif x == -1:
+                focused_tab_index = (focused_tab_index - 1) % len(self.tab_order)
 
-            if y == 1:  # UP
-                focused_game_index = max(0, focused_game_index - 4)
-            elif y == -1:  # DOWN
+            # Sync tab highlight and bumper logic
+            for i, k in enumerate(self.tab_order):
+                self.tab_buttons[k].highlight(i == focused_tab_index)
+            self.current_tab_index = focused_tab_index
+
+            if y == -1:  # ↓ into grid
+                screen = self.sm.get_screen(self.sm.current)
+                if hasattr(screen, 'children') and screen.children:
+                    scroll = screen.children[0]
+                    if hasattr(scroll, 'children') and scroll.children:
+                        layout = scroll.children[0]
+                        focused_game_buttons = [
+                            child for child in reversed(layout.children)
+                            if isinstance(child, GameButton)
+                        ]
+                        if focused_game_buttons:
+                            focus_mode = "grid"
+                            focused_game_index = 0
+                            focused_game_buttons[focused_game_index].set_focus(True)
+                            return
+
+        elif focus_mode == "grid":
+            if focused_game_buttons:
+                focused_game_buttons[focused_game_index].set_focus(False)
+
+            if y == 1:  # ↑ key
+                if focused_game_index < 4:
+                    # Top row → go to tab bar
+                    focus_mode = "tab"
+                    for i, k in enumerate(self.tab_order):
+                        self.tab_buttons[k].highlight(i == focused_tab_index)
+                    return
+                else:
+                    focused_game_index = max(0, focused_game_index - 4)
+            elif y == -1:
                 focused_game_index = min(len(focused_game_buttons) - 1, focused_game_index + 4)
-            elif x == -1:  # LEFT
+            elif x == -1:
                 focused_game_index = max(0, focused_game_index - 1)
-            elif x == 1:  # RIGHT
+            elif x == 1:
                 focused_game_index = min(len(focused_game_buttons) - 1, focused_game_index + 1)
 
-            focused_game_buttons[focused_game_index].set_focus(True)
+            if focused_game_buttons:
+                focused_game_buttons[focused_game_index].set_focus(True)
 
     def on_joy_axis(self, window, stickid, axisid, value):
         # Optional: Add cooldown logic to prevent spamming input
@@ -424,13 +500,12 @@ class SuperConsoleLauncher(App):
 
             focused_game_buttons[focused_game_index].set_focus(True)
             
-            
-            KIVY UI LOGIC COMMENTED OUT IN CASE I WOULD LIKE TO COME BACK TO IT
-            
+
             
             
             
-'''
+            
+
 
 
 
