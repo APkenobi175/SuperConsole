@@ -19,7 +19,7 @@ from kivy.uix.anchorlayout import AnchorLayout
 from kivy.graphics import Color, Rectangle, Line
 from kivy.utils import platform
 from kivy.core.window import Keyboard
-
+import threading
 
 from src.romScanner import scan_roms
 from src.gameLauncher import launch_game
@@ -151,8 +151,12 @@ class GameButton(ButtonBehavior, FloatLayout):
         self.bg_color.rgba = (0.2, 0.6, 1, 0.4) if focused else (1, 1, 1, 0)
 
     def on_press(self):
+        from kivy.app import App
         add_to_recent(self.game_info)
-        launch_game(self.game_info['platform'], self.game_info['rom_path'])
+        App.get_running_app().launch_game_and_release(
+            self.game_info['platform'],
+            self.game_info['rom_path']
+        )
 
 
 class StarButton(ButtonBehavior, KivyImage):
@@ -388,6 +392,37 @@ class HomeScreen(Screen):
 
 
 class SuperConsoleLauncher(App):
+
+    def pause_controller_input(self):
+        try:
+            Window.unbind(on_joy_button_down=self.on_joy_button_down)
+            Window.unbind(on_joy_axis=self.on_joy_axis)
+            Window.unbind(on_joy_hat=self.on_joy_hat)
+        except Exception:
+            pass
+
+    def resume_controller_input(self):
+        Window.bind(on_joy_button_down=self.on_joy_button_down)
+        Window.bind(on_joy_axis=self.on_joy_axis)
+        Window.bind(on_joy_hat=self.on_joy_hat)
+
+    def launch_game_and_release(self, platform, rom_path):
+        # Stop Kivy from owning the controller while the emulator runs
+        self.pause_controller_input()
+
+        # IMPORTANT: make launch_game(...) return a subprocess.Popen in src/gameLauncher.py
+        proc = launch_game(platform, rom_path)
+
+        # If launch_game returns a Popen, wait and then rebind input
+        def wait_and_rebind():
+            try:
+                if hasattr(proc, "wait"):
+                    proc.wait()
+            finally:
+                self.resume_controller_input()
+
+        threading.Thread(target=wait_and_rebind, daemon=True).start()
+
     def on_key_down(self, window, keycode, scancode, codepoint, modifiers):
         global focused_game_index, focused_game_buttons
 
@@ -458,6 +493,14 @@ class SuperConsoleLauncher(App):
             root.bind(pos=lambda instance, value: setattr(self.bg_rect, 'pos', value))
 
         self.sm = ScreenManager()
+
+        # --- Controller axis handling config ---
+        from kivy.clock import Clock
+        self._axis_deadzone = 0.35
+        self._axis_repeat_delay = 0.18  # seconds; optional repeat if you add later
+        # Track per-axis engaged state so a held stick only fires once until it returns to deadzone
+        self._axis_engaged = {0: False, 1: False}
+        self.use_dpad_buttons = False  # If True, treat D-pad as buttons 11–14; otherwise rely on on_joy_hat
 
         all_games = scan_roms("ROMs/", "Covers/")
         self.platforms = self.group_games_by_platform(all_games)
@@ -545,30 +588,44 @@ class SuperConsoleLauncher(App):
 
         if platform != "Home" and platform in self.platforms:
             screen = self.sm.get_screen(platform)
-            global focused_game_buttons, focused_game_index
+            global focused_game_buttons, focused_game_index, focus_mode, focused_tab_index
 
-            layout = screen.children[0].children[0]  # ScrollView -> GridLayout
+            if not screen.children:
+                return
+            root_layout = screen.children[0]
 
-            # 🔥 Clear all visual highlights before resetting list
-            for child in layout.children:
-                if isinstance(child, GameButton):
-                    child.set_focus(False)
+            # Get the ScrollView
+            scroll = None
+            for ch in root_layout.children:
+                if ch.__class__.__name__ == "ScrollView":
+                    scroll = ch
+                    break
+            if scroll is None and root_layout.children:
+                scroll = root_layout.children[0]
 
-            # ✅ FIX: Rebuild list of GameButtons (reversed because Kivy adds children in reverse)
-            focused_game_buttons = [
-                child for child in reversed(layout.children)
-                if isinstance(child, GameButton)
-            ]
-            focused_game_index = 0
+            # Get the GridLayout from the ScrollView
+            grid = scroll.children[0] if scroll and scroll.children else None
+            if grid is None:
+                focused_game_buttons = []
+                focused_game_index = 0
+            else:
+                # Clear ALL highlights
+                for child in grid.children:
+                    if hasattr(child, "set_focus"):
+                        child.set_focus(False)
 
-            # ✅ Apply initial focus (if there are games)
-            if focused_game_buttons:
-                focused_game_buttons[focused_game_index].set_focus(True)
+                # Rebuild button list in correct order
+                focused_game_buttons = [child for child in reversed(grid.children) if hasattr(child, "set_focus")]
+                focused_game_index = 0
 
-            # ✅ Set mode to grid so input works
-            global focus_mode
-            focus_mode = "grid"
-            self.update_hud_context("grid")
+            # Start in tab mode
+            focus_mode = "tab"
+            self.update_hud_context("tab")
+
+            # Highlight the correct tab
+            for i, k in enumerate(self.tab_order):
+                self.tab_buttons[k].highlight(i == self.tab_order.index(platform))
+            focused_tab_index = self.tab_order.index(platform)
 
     def on_joy_button_down(self, window, stickid, button):
         global focused_game_index, focused_game_buttons
@@ -687,30 +744,58 @@ class SuperConsoleLauncher(App):
                 self.scroll_to_focused_game()
 
     def on_joy_axis(self, window, stickid, axisid, value):
-        # Optional: Add cooldown logic to prevent spamming input
-        print(f"Analog axis {axisid} value: {value}")
-        threshold = 0.6
+        # Edge-triggered analog stick handling with deadzone and latch
+        if axisid not in (0, 1):
+            return
+
+        # Only allow analog navigation in grid mode
+        if globals().get("focus_mode") != "grid":
+            return
+
+        # Deadzone check
+        if abs(value) < self._axis_deadzone:
+            self._axis_engaged[axisid] = False  # release latch so next deflection can fire
+            return
+
+        # If stick is already engaged, ignore until it returns to deadzone
+        if self._axis_engaged.get(axisid, False):
+            return
+
+        # Latch once per deflection
+        self._axis_engaged[axisid] = True
+
         global focused_game_index, focused_game_buttons
+        if not focused_game_buttons:
+            return
 
-        if abs(value) < threshold:
-            return  # Ignore small movements
+        # Clear current highlight
+        focused_game_buttons[focused_game_index].set_focus(False)
 
-        if focused_game_buttons:
-            focused_game_buttons[focused_game_index].set_focus(False)
+        step_h = 1  # left/right step
+        step_v = 5  # up/down step (your grid has 5 columns)
 
-            if axisid == 0:  # Left/Right
-                if value > threshold:
-                    focused_game_index = min(len(focused_game_buttons) - 1, focused_game_index + 1)
-                elif value < -threshold:
-                    focused_game_index = max(0, focused_game_index - 1)
-            elif axisid == 1:  # Up/Down
-                if value > threshold:
-                    focused_game_index = min(len(focused_game_buttons) - 1, focused_game_index + 5)
-                elif value < -threshold:
-                    focused_game_index = max(0, focused_game_index - 5)
+        if axisid == 0:  # Left/right
+            if value > 0:
+                focused_game_index = min(len(focused_game_buttons) - 1, focused_game_index + step_h)
+            else:
+                focused_game_index = max(0, focused_game_index - step_h)
 
-            focused_game_buttons[focused_game_index].set_focus(True)
-            self.scroll_to_focused_game()
+        elif axisid == 1:  # Up/down
+            if value > 0:
+                focused_game_index = min(len(focused_game_buttons) - 1, focused_game_index + step_v)
+            else:
+                # Moving up from top row → jump to tab mode
+                if focused_game_index < step_v:
+                    globals()["focus_mode"] = "tab"
+                    self.update_hud_context("tab")
+                    for i, k in enumerate(self.tab_order):
+                        self.tab_buttons[k].highlight(i == globals().get("focused_tab_index", 0))
+                    return
+                focused_game_index = max(0, focused_game_index - step_v)
+
+        # Set new highlight
+        focused_game_buttons[focused_game_index].set_focus(True)
+        self.scroll_to_focused_game()
 
 
 class IconButton(ButtonBehavior, BoxLayout):

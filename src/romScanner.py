@@ -2,7 +2,7 @@ import os
 from src.utils import clean_title
 
 SUPPORTED_EXTENSIONS = {
-    '.iso', '.bin', '.img', '.n64', '.smc', '.gba', '.gcn', '.cue', '.elf', '.rpx', '.rvz', '.nes', '.z64', '.sfc',
+    '.iso', '.bin', '.img', '.n64', '.smc', '.gba', '.gcn', '.cue', '.elf', '.rpx', '.rvz', '.nes', '.z64', '.sfc', '.gbc'
 }
 
 def scan_roms(rom_base_dir, cover_base_dir):
